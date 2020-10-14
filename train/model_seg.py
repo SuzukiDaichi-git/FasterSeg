@@ -302,7 +302,7 @@ class Network_Multi_Path_Infer(nn.Module):
             if last == 2:
                 if self.training: pred32.append(outputs32[branch])
                 out = self.arms32[0](outputs32[branch])
-                out = F.interpolate(out, size=(int(out.size(2))*2, int(out.size(3))*2), mode='bilinear', align_corners=True)
+                out = F.interpolate(out, size=(int(out.size(2))*2, int(outputs16[branch].size(3))), mode='bilinear', align_corners=True)
                 out = self.refines32[0](torch.cat([out, outputs16[branch]], dim=1))
                 if self.training: pred16.append(outputs16[branch])
                 out = self.arms32[1](out)

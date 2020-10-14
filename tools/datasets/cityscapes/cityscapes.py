@@ -1,12 +1,7 @@
-import numpy as np
-
 from datasets.BaseDataset import BaseDataset
 
 
 class Cityscapes(BaseDataset):
-    trans_labels = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-                    28, 31, 32, 33]
-
     @classmethod
     def get_class_colors(*args):
         return [[128, 64, 128], [244, 35, 232], [70, 70, 70],
@@ -25,18 +20,3 @@ class Cityscapes(BaseDataset):
                 'traffic light', 'traffic sign',
                 'vegetation', 'terrain', 'sky', 'person', 'rider', 'car',
                 'truck', 'bus', 'train', 'motorcycle', 'bicycle']
-
-    @classmethod
-    def transform_label(cls, pred, name):
-        label = np.zeros(pred.shape)
-        ids = np.unique(pred)
-        for id in ids:
-            label[np.where(pred == id)] = cls.trans_labels[id]
-
-        new_name = (name.split('.')[0]).split('_')[:-1]
-        new_name = '_'.join(new_name) + '.png'
-
-        print('Trans', name, 'to', new_name, '    ',
-              np.unique(np.array(pred, np.uint8)), ' ---------> ',
-              np.unique(np.array(label, np.uint8)))
-        return label, new_name

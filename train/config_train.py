@@ -23,12 +23,18 @@ C.root_dir = C.abs_dir[:C.abs_dir.index(C.repo_name) + len(C.repo_name)]
 C.log_dir = osp.abspath(osp.join(C.root_dir, 'log', C.this_dir))
 
 """Data Dir"""
-C.dataset_path = "/ssd1/chenwy/cityscapes/"
-C.img_root_folder = C.dataset_path
-C.gt_root_folder = C.dataset_path
-C.train_source = osp.join(C.dataset_path, "cityscapes_train_fine.txt")
-C.train_eval_source = osp.join(C.dataset_path, "cityscapes_train_val_fine.txt")
-C.eval_source = osp.join(C.dataset_path, "cityscapes_val_fine.txt")
+# C.dataset_path = "//srv/datasets/Cityscapes"
+# C.img_root_folder = C.dataset_path
+# C.gt_root_folder = C.dataset_path
+# C.train_source = osp.join(C.dataset_path, "cityscapes_train_fine.txt")
+# C.train_eval_source = osp.join(C.dataset_path, "cityscapes_train_fine.txt")
+# C.eval_source = osp.join(C.dataset_path, "cityscapes_val_fine.txt")
+# C.test_source = osp.join(C.dataset_path, "cityscapes_test.txt")
+C.dataset_path = "//home/suzuki/ai-edge-contest-dataset"
+C.img_root_folder = osp.join(C.dataset_path, "seg_train_images")
+C.gt_root_folder = osp.join(C.dataset_path, "seg_train_annotations_id")
+C.train_source = osp.join(C.dataset_path, "signate_train_fine.txt")
+C.eval_source = osp.join(C.dataset_path, "signate_val_fine.txt")
 C.test_source = osp.join(C.dataset_path, "cityscapes_test.txt")
 
 """Path Config"""
@@ -41,10 +47,12 @@ add_path(osp.join(C.root_dir, 'tools'))
 """Image Config"""
 C.num_classes = 19
 C.background = -1
-C.image_mean = np.array([0.485, 0.456, 0.406])
-C.image_std = np.array([0.229, 0.224, 0.225])
+# C.image_mean = np.array([0.485, 0.456, 0.406])   # cityscapes
+C.image_mean = np.array([0.3563, 0.3689, 0.3901])  # signate
+# C.image_std = np.array([0.229, 0.224, 0.225])    # cityscapes
+C.image_std = np.array([0.2835, 0.2796, 0.2597])   # signate
 C.target_size = 1024
-C.down_sampling = 1 # first down_sampling then crop ......
+C.down_sampling = 4   # change!  # first down_sampling then crop ......
 C.gt_down_sampling = 1
 C.num_train_imgs = 2975
 C.num_eval_imgs = 500
@@ -81,9 +89,9 @@ if C.mode == "teacher":
     C.branch = [2]
     C.width_mult_list = [4./12, 6./12, 8./12, 10./12, 1.,]
     C.stem_head_width = [(1, 1)]
-    C.load_path = "fasterseg" # path to the searched directory
+    C.load_path = "fasterseg"
     C.load_epoch = "last" # "last" or "int" (e.g. "30"): which epoch to load from the searched architecture
-    C.batch_size = 12
+    C.batch_size = 12  # sigle gpu : 12
     C.Fch = 12
     C.image_height = 512
     C.image_width = 1024
@@ -97,9 +105,9 @@ elif C.mode == "student":
     C.load_path = "fasterseg" # path to the searched directory
     C.teacher_path = "fasterseg" # where to load the pretrained teacher's weight
     C.load_epoch = "last" # "last" or "int" (e.g. "30")
-    C.batch_size = 12
+    C.batch_size = 12  # single gpu : 12
     C.Fch = 12
-    C.image_height = 512
+    C.image_height = 512  # crop size
     C.image_width = 1024
     C.save = "%dx%d_student_batch%d"%(C.image_height, C.image_width, C.batch_size)
 

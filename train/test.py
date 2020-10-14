@@ -49,7 +49,7 @@ class SegTester(Tester):
     def func_per_iteration(self, data, device, iter=None):
         if self.config is not None: config = self.config
         img = data['data']
-        label = data['label']
+        # label = data['label']
         name = data['fn']
 
         if len(config.eval_scale_array) == 1:
@@ -62,11 +62,11 @@ class SegTester(Tester):
             image = img
             comp_img = show_prediction(colors, config.background, image, pred)
             cv2.imwrite(os.path.join(os.path.realpath('.'), self.config.save, "test", name+".viz.png"), comp_img[:,:,::-1])
-
-        for x in range(pred.shape[0]):
-            for y in range(pred.shape[1]):
-                pred[x, y] = cityscapes_trainID2id[pred[x, y]]
-        cv2.imwrite(os.path.join(os.path.realpath('.'), self.config.save, "test", name+".png"), pred)
+        
+#         for x in range(pred.shape[0]):
+#             for y in range(pred.shape[1]):
+#                 pred[x, y] = cityscapes_trainID2id[pred[x, y]]
+#         cv2.imwrite(os.path.join(os.path.realpath('.'), self.config.save, "test", name+".png"), pred)
 
     def compute_metric(self, results):
         hist = np.zeros((self.config.num_classes, self.config.num_classes))

@@ -31,32 +31,41 @@ class TrainPre(object):
         return p_img, p_gt, extra_dict
 
 
-def get_train_loader(config, dataset, portion=None, worker=None, test=False):
+def get_data_loader(config, Dataset, split_name, portion=None, worker=None):
+    
     data_setting = {'img_root': config.img_root_folder,
                     'gt_root': config.gt_root_folder,
                     'train_source': config.train_source,
                     'eval_source': config.eval_source,
+                    'test_source': config.test_source,
                     'down_sampling': config.down_sampling,
                     'portion': portion}
-    if test:
-        data_setting = {'img_root': config.img_root_folder,
-                        'gt_root': config.gt_root_folder,
-                        'train_source': config.train_eval_source,
-                        'eval_source': config.eval_source,
-                        'down_sampling': config.down_sampling,
-                        'portion': portion}
+    
     train_preprocess = TrainPre(config, config.image_mean, config.image_std)
 
-    train_dataset = dataset(data_setting, "train", train_preprocess, config.batch_size * config.niters_per_epoch)
+    batch_size = config.batch_size
+    if split_name=="val" or split_name=="test":
+        batch_size = 1
+    num_threads = torch.get_num_threads()
+    num_gpus = 2
+    
+    pipes = [Dataset(data_setting, split_name, batch_size, num_threads, device_id, preprocess=train_preprocess) for device_id in range(num_gpus)]
 
     is_shuffle = True
-    batch_size = config.batch_size
 
-    train_loader = data.DataLoader(train_dataset,
-                                   batch_size=batch_size,
-                                   num_workers=config.num_workers if worker is None else worker,
-                                   drop_last=True,
-                                   shuffle=is_shuffle,
-                                   pin_memory=True)
+    pipes[0].build()
+    dali_iter = DALIGenericIterator(pipelines=pipes, output_map=['data', 'label'], 
+                                    size=pipes[0].epoch_size("Reader"), reader_name=None, 
+                                    auto_reset=True, fill_last_batch=True, dynamic_shape=False, 
+                                    last_batch_padded=True)
+    return dali_iter
 
-    return train_loader
+
+#     train_loader = data.DataLoader(train_dataset,
+#                                    batch_size=batch_size,
+#                                    num_workers=config.num_workers if worker is None else worker,
+#                                    drop_last=True,
+#                                    shuffle=is_shuffle,
+#                                    pin_memory=True)
+
+#     return train_loader

@@ -9,7 +9,8 @@ def set_img_color(colors, background, img, gt, show255=False, weight_foreground=
         if i != background:
             img[np.where(gt == i)] = colors[i]
     if show255:
-        img[np.where(gt == 255)] = 0
+        # img[np.where(gt == 255)] = 0
+        img[np.where(gt == 255)] = [86, 62, 67]
     cv2.addWeighted(img, weight_foreground, origin, (1 - weight_foreground), 0, img)
     return img
 

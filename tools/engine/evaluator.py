@@ -15,11 +15,11 @@ logger = get_logger()
 
 
 class Evaluator(object):
-    def __init__(self, dataset, class_num, image_mean, image_std, network,
+    def __init__(self, dataloader, class_num, image_mean, image_std, network,
                  multi_scales, is_flip, devices=0, out_idx=0, threds=3, config=None, logger=None,
                  verbose=False, save_path=None, show_image=False, show_prediction=False):
-        self.dataset = dataset
-        self.ndata = self.dataset.get_length()
+        self.dataloader = dataloader
+        self.ndata = self.dataloader.get_length()
         self.class_num = class_num
         self.image_mean = image_mean
         self.image_std = image_std
@@ -96,7 +96,7 @@ class Evaluator(object):
             results.flush()
 
         results.close()
-
+    
     def run_online(self):
         """
         eval during training
@@ -107,16 +107,14 @@ class Evaluator(object):
     
     def single_process_evaluation(self):
         all_results = []
-        from pdb import set_trace as bp
         with torch.no_grad():
-            for idx in tqdm(range(self.ndata)):
-                dd = self.dataset[idx]
+            for dd in tqdm(self.data_loader):
                 results_dict = self.func_per_iteration(dd, self.devices[0], iter=idx)
                 all_results.append(results_dict)
                 _, _mIoU = self.compute_metric([results_dict])
         result_line, mIoU = self.compute_metric(all_results)
         return result_line, mIoU
-
+    
     def run_online_multiprocess(self):
         """
         eval during training
@@ -124,7 +122,7 @@ class Evaluator(object):
         self.val_func = self.network
         result_line, mIoU = self.multi_process_single_gpu_evaluation()
         return result_line, mIoU
-
+    
     def multi_process_single_gpu_evaluation(self):
         # start_eval_time = time.perf_counter()
         stride = int(np.ceil(self.ndata / self.threds))
@@ -293,7 +291,7 @@ class Evaluator(object):
                                  interpolation=cv2.INTER_LINEAR)
 
         return data_output
-
+    
     def val_func_process(self, input_data, device=None):
         input_data = np.ascontiguousarray(input_data[None, :, :, :], dtype=np.float32)
         input_data = torch.FloatTensor(input_data).cuda(device)

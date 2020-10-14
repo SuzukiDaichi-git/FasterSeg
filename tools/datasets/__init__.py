@@ -1,5 +1,5 @@
+from .signate import Signate
 from .cityscapes import Cityscapes
-from .bdd import BDD
 from .camvid import CamVid
 
-__all__ = ['Cityscapes', 'BDD', 'CamVid']
+__all__ = ['Signate', 'Cityscapes', 'CamVid']

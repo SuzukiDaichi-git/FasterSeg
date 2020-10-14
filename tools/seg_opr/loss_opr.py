@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from engine.logger import get_logger
+import pdb
 
 logger = get_logger()
 
@@ -61,14 +63,15 @@ class ProbOhemCrossEntropy2d(nn.Module):
                                                        ignore_index=ignore_label)
 
     def forward(self, pred, target):
+        # pdb.set_trace()
         b, c, h, w = pred.size()
         target = target.view(-1)
-        valid_mask = target.ne(self.ignore_label)
-        target = target * valid_mask.long()
+        valid_mask = target.ne(self.ignore_label)   # ne: not equal
+        target = target * valid_mask.long()     # [1,5,17,255] → [1,5,17,0]
         num_valid = valid_mask.sum()
 
-        prob = F.softmax(pred, dim=1)
-        prob = (prob.transpose(0, 1)).reshape(c, -1)
+        prob = F.softmax(pred, dim=1)   # prob.shape = [b,c,h,w]
+        prob = (prob.transpose(0, 1)).reshape(c, -1) # prob.shape = [c,b*h*w]
 
         if self.min_kept > num_valid:
             logger.info('Labels: {}'.format(num_valid))
@@ -87,7 +90,7 @@ class ProbOhemCrossEntropy2d(nn.Module):
                 valid_mask = valid_mask * kept_mask
                 # logger.info('Valid Mask: {}'.format(valid_mask.sum()))
 
-        target = target.masked_fill_(1 - valid_mask, self.ignore_label)
-        target = target.view(b, h, w)
+        target = target.masked_fill_(1 - valid_mask, self.ignore_label)  # valid_mask=0 の箇所を, ignore_labelで埋める
+        target = target.view(b, h, w)  # gray scale?
 
         return self.criterion(pred, target)

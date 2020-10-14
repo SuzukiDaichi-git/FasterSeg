@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
 import numpy as np
-from thop import profile
+from thop import profile as thop_profile
 
 from config_train import config
 if config.is_eval:
@@ -22,6 +22,7 @@ else:
     config.save = 'train-{}-{}'.format(config.save, time.strftime("%Y%m%d-%H%M%S"))
 from dataloader import get_train_loader
 from datasets import Cityscapes
+from datasets import Signate
 
 from utils.init_func import init_weight
 from seg_opr.loss_opr import ProbOhemCrossEntropy2d
@@ -31,6 +32,8 @@ from test import SegTester
 from utils.darts_utils import create_exp_dir, save, plot_op, plot_path_width, objective_acc_lat
 from model_seg import Network_Multi_Path_Infer as Network
 import seg_metrics
+
+import pdb
 
 
 
@@ -62,24 +65,15 @@ def main():
     min_kept = int(config.batch_size * config.image_height * config.image_width // (16 * config.gt_down_sampling ** 2))
     ohem_criterion = ProbOhemCrossEntropy2d(ignore_label=255, thresh=0.7, min_kept=min_kept, use_weight=False)
     distill_criterion = nn.KLDivLoss()
-
-    # data loader ###########################
-    if config.is_test:
-        data_setting = {'img_root': config.img_root_folder,
-                        'gt_root': config.gt_root_folder,
-                        'train_source': config.train_eval_source,
-                        'eval_source': config.eval_source,
-                        'test_source': config.test_source,
-                        'down_sampling': config.down_sampling}
-    else:
-        data_setting = {'img_root': config.img_root_folder,
-                        'gt_root': config.gt_root_folder,
-                        'train_source': config.train_source,
-                        'eval_source': config.eval_source,
-                        'test_source': config.test_source,
-                        'down_sampling': config.down_sampling}
-
-    train_loader = get_train_loader(config, Cityscapes, test=config.is_test)
+    
+    
+    # change! Cityscapes or Signate
+    Dataset = Signate
+    
+    # data_loader
+    train_loader, val_loader = get_train_loader(config, Dataset, "train")
+    val_loader = get_train_loader(config, Dataset, "val")
+    test_loader = get_train_loader(config, Dataset, "test")
 
 
     # Model #######################################
@@ -105,7 +99,7 @@ def main():
         else: last = [2, 1]
         lasts.append(last)
         model.build_structure(last)
-        logging.info("net: " + str(model))
+        # logging.info("net: " + str(model))
         for b in last:
             if len(config.width_mult_list) > 1:
                 plot_op(getattr(model, "ops%d"%b), getattr(model, "path%d"%b), width=getattr(model, "widths%d"%b), head_width=config.stem_head_width[idx][1], F_base=config.Fch).savefig(os.path.join(config.save, "ops_%d_%d.png"%(arch_idx,b)), bbox_inches="tight")
@@ -113,12 +107,13 @@ def main():
                 plot_op(getattr(model, "ops%d"%b), getattr(model, "path%d"%b), F_base=config.Fch).savefig(os.path.join(config.save, "ops_%d_%d.png"%(arch_idx,b)), bbox_inches="tight")
         plot_path_width(model.lasts, model.paths, model.widths).savefig(os.path.join(config.save, "path_width%d.png"%arch_idx))
         plot_path_width([2, 1, 0], [model.path2, model.path1, model.path0], [model.widths2, model.widths1, model.widths0]).savefig(os.path.join(config.save, "path_width_all%d.png"%arch_idx))
-        flops, params = profile(model, inputs=(torch.randn(1, 3, 1024, 2048),), verbose=False)
-        logging.info("params = %fMB, FLOPs = %fGB", params / 1e6, flops / 1e9)
-        logging.info("ops:" + str(model.ops))
-        logging.info("path:" + str(model.paths))
-        logging.info("last:" + str(model.lasts))
+        flops, params = thop_profile(model, inputs=(torch.randn(1, 3, 1024, 2048),), verbose=False)
+        # logging.info("params = %fMB, FLOPs = %fGB", params / 1e6, flops / 1e9)
+        # logging.info("ops:" + str(model.ops))
+        # logging.info("path:" + str(model.paths))
+        # logging.info("last:" + str(model.lasts))
         model = model.cuda()
+        model = torch.nn.DataParallel(model) # make parallel
         init_weight(model, nn.init.kaiming_normal_, torch.nn.BatchNorm2d, config.bn_eps, config.bn_momentum, mode='fan_in', nonlinearity='relu')
 
         if arch_idx == 0 and len(config.arch_idx) > 1:
@@ -134,13 +129,13 @@ def main():
             state.update(pretrained_dict)
             model.load_state_dict(state)
 
-        evaluator = SegEvaluator(Cityscapes(data_setting, 'val', None), config.num_classes, config.image_mean,
+        evaluator = SegEvaluator(val_loader, config.num_classes, config.image_mean,
                                  config.image_std, model, config.eval_scale_array, config.eval_flip, 0, out_idx=0, config=config,
-                                 verbose=False, save_path=None, show_image=False, show_prediction=False)
+                                 verbose=False, save_path=None, show_image=False, show_prediction=True)
         evaluators.append(evaluator)
-        tester = SegTester(Cityscapes(data_setting, 'test', None), config.num_classes, config.image_mean,
+        tester = SegTester(test_loader, config.num_classes, config.image_mean,
                                  config.image_std, model, config.eval_scale_array, config.eval_flip, 0, out_idx=0, config=config,
-                                 verbose=False, save_path=None, show_prediction=False)
+                                 verbose=False, save_path=None, show_prediction=True)
         testers.append(tester)
 
         # Optimizer ###################################
@@ -151,11 +146,11 @@ def main():
         models.append(model)
 
 
-    # Cityscapes ###########################################
+    # Dataset ###########################################
     if config.is_eval:
-        logging.info(config.load_path)
-        logging.info(config.eval_path)
-        logging.info(config.save)
+        # logging.info(config.load_path)
+        # logging.info(config.eval_path)
+        logging.info("config.save : "+str(config.save))
         with torch.no_grad():
             if config.is_test:
                 # test
@@ -177,8 +172,8 @@ def main():
 
     tbar = tqdm(range(config.nepochs), ncols=80)
     for epoch in tbar:
-        logging.info(config.load_path)
-        logging.info(config.save)
+        # logging.info(config.load_path)
+        logging.info("config.save : "+str(config.save))
         logging.info("lr: " + str(optimizer.param_groups[0]['lr']))
         # training
         tbar.set_description("[Epoch %d/%d][train...]" % (epoch + 1, config.nepochs))
@@ -225,16 +220,15 @@ def train(train_loader, models, criterion, distill_criterion, optimizer, logger,
         models[0].eval()
         models[1].train()
 
-    bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
-    pbar = tqdm(range(config.niters_per_epoch), file=sys.stdout, bar_format=bar_format, ncols=80)
-    dataloader = iter(train_loader)
+#     bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'
+#     pbar = tqdm(range(config.niters_per_epoch), file=sys.stdout, bar_format=bar_format, ncols=80)
+#     dataloader = iter(train_loader)
 
     metrics = [ seg_metrics.Seg_Metrics(n_classes=config.num_classes) for _ in range(len(models)) ]
     lamb = 0.2
-    for step in pbar:
+    for minibatch in tqdm(train_loader):
         optimizer.zero_grad()
 
-        minibatch = dataloader.next()
         imgs = minibatch['data']
         target = minibatch['label']
         imgs = imgs.cuda(non_blocking=True)
@@ -257,12 +251,13 @@ def train(train_loader, models, criterion, distill_criterion, optimizer, logger,
                 loss = loss + lamb * criterion(logits16, target)
                 loss = loss + lamb * criterion(logits32, target)
                 if len(logits_list) > 1:
+                    # teacherからdistillしている箇所（logits_list[0]）
                     loss = loss + distill_criterion(F.softmax(logits_list[1], dim=1).log(), F.softmax(logits_list[0], dim=1))
-
+            
             metrics[idx].update(logits8.data, target)
             description += "[mIoU%d: %.3f]"%(arch_idx, metrics[idx].get_scores())
 
-        pbar.set_description("[Step %d/%d]"%(step + 1, len(train_loader)) + description)
+        # pbar.set_description("[Step %d/%d]"%(step + 1, len(train_loader)) + description)
         logger.add_scalar('loss/train', loss+loss_kl, epoch*len(pbar)+step)
 
         loss.backward()
@@ -270,13 +265,12 @@ def train(train_loader, models, criterion, distill_criterion, optimizer, logger,
 
     return [ metric.get_scores() for metric in metrics ]
 
-
 def infer(models, evaluators, logger):
     mIoUs = []
     for model, evaluator in zip(models, evaluators):
         model.eval()
-        # _, mIoU = evaluator.run_online()
-        _, mIoU = evaluator.run_online_multiprocess()
+        _, mIoU = evaluator.run_online()
+        # _, mIoU = evaluator.run_online_multiprocess()
         mIoUs.append(mIoU)
     return mIoUs
 

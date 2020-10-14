@@ -39,7 +39,8 @@ class SegEvaluator(Evaluator):
             clean = np.zeros(label.shape)
             comp_img = show_img(colors, config.background, image, clean, label, pred)
             self.logger.add_image('vis', np.swapaxes(np.swapaxes(comp_img, 0, 2), 1, 2), iter)
-
+        
+        print("self.show_prediction = ", self.show_prediction)
         if self.show_image or self.show_prediction:
             colors = self.dataset.get_class_colors()
             image = img
@@ -48,10 +49,11 @@ class SegEvaluator(Evaluator):
                 comp_img = show_img(colors, config.background, image, clean, label, pred)
             else:
                 comp_img = show_prediction(colors, config.background, image, pred)
-            cv2.imwrite(name + ".png", comp_img[:,:,::-1])
+            cv2.imwrite(os.path.join(os.path.realpath('.'), self.config.save, "eval", name+".vis.png"), comp_img[:,:,::-1])
+            # cv2.imwrite(name + ".png", comp_img[:,:,::-1])
 
         return results_dict
-
+    
     def compute_metric(self, results):
         hist = np.zeros((self.config.num_classes, self.config.num_classes))
         correct = 0
